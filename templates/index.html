@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <script>
+            // Declare a global variable in the <head> section
+            var state = '0'; // or '0'
+        </script>
+        <!-- Material Design Lite -->
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap">
+        <link rel="stylesheet" href="https://cdn.materialdesignicons.com/5.4.55/css/materialdesignicons.min.css">
+        <link rel="stylesheet" href="https://code.getmdl.io/1.3.0/material.indigo-pink.min.css">
+        <script defer src="https://code.getmdl.io/1.3.0/material.min.js"></script>
+        <style>
+            .page-content {
+                display: flex;
+                justify-content: left;
+                align-items: left;
+                height: 100vh;
+                flex-direction: column;
+            }
+            
+            .drop-zone {
+                cursor: pointer;
+                padding: 20px;
+                border: 2px dashed #8b159b;
+                color: #8b159b;
+                font-weight: bold;
+                text-align: center;
+                margin: 20px;
+                position: relative;
+                overflow: hidden;
+            }
+            
+            .drop-zone:hover {
+                background-color: #ffffff;
+            }
+
+            .progress-container {
+                width: 75%;
+                max-width: 500px;
+                margin-top: 20px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .progress-bar {
+                width: 100%;
+                height: 20px;
+                background-color: #000000;
+                margin-top: 10px;
+                align-items: center;
+            }
+
+            .progress-bar-fill {
+                width: 0%;
+                height: 100%;
+                background-color: #8b159b;
+                transition: width 0.3s ease-in-out;
+            }
+
+            .progress-label {
+                margin-top: 5px;
+                font-weight: bold;
+            }
+
+            .file-name {
+                margin-top: 20px;
+            }
+
+            .search-form {
+            width: 100%;
+            max-width: 600px;
+            margin: 20px auto;
+            display: flex;
+            text-align: center;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .mdl-textfield {
+            width: 50%;
+            margin-right: 10px;
+        }
+
+        .mdl-textfield__input {
+            font-size: 16px;
+            padding: 10px;
+            border-radius: 2px;
+        }
+
+        .mdl-button {
+            font-size: 16px;
+            padding: 10px 20px;
+            border-radius: 2px;
+            text-align: center;
+        }
+
+        .h1 {
+            color: #8b159b;
+            font-weight: bold;
+            text-align: center;
+            margin: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+        .section1{
+	        background-color:#ffffff;
+	        width:60%;
+	        float:left;
+	        height:100vh;
+            margin:0;
+            padding:0;	
+        }
+        .section2{
+	        background-color:#ffffff;
+	        width:40%;
+	        float:left;
+	        height:100vh;
+	        margin:0;
+	        padding:0;
+            align-items: center;
+        }
+        .lowwdidth
+        {
+            width:30%;
+        }
+        
+
+        </style>
+    </head>
+
+    <body>
+        <script>
+            // Function to send periodic ping to the server
+            function sendPing() {
+                fetch('/user_on_page', { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => console.log("User still on page:", data))
+                    .catch(error => console.log("Error:", error));
+            }
+    
+            // Send ping every 5 seconds to let the server know the user is still on the page
+            setInterval(sendPing, 60000);
+    
+            // If the user closes the tab, send an 'unload' event to notify the server
+            window.addEventListener("beforeunload", function() {
+                navigator.sendBeacon('/user_left');
+            });
+        </script>
+        <div class = "section1">
+        <form action="/search" method="POST">
+            <input type="text" name="query" placeholder="Search..." value="{{ query }}" required>
+            <button type="submit">Search</button>
+        </form>
+    
+        {% if results %}
+            <h2>Results for "{{ query }}"</h2>
+            <ul>
+                {% for result in results %}
+                    <li><a href="#" onclick="storeClickedMessage('{{ result }}')">{{ result }}</a></li>
+                {% endfor %}
+            </ul>
+        {% elif query %}
+            <p>No results found for "{{ query }}".</p>
+        {% endif %}
+        </div>
+        <script>
+            // Function to send the clicked message to the Flask backend
+            function storeClickedMessage(clickedMessage) {
+                fetch('/store_click', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ clicked_message: clickedMessage })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Message stored:', data.message);
+                })
+                .catch((error) => {
+                    console.error('Error:', error);
+                });
+            }
+        </script>
+        <div class = "section2">
+        <div class="mdl-layout mdl-js-layout mdl-layout--fixed-header">
+            <main class="mdl-layout__content">
+                <div class="page-content">
+                    <div id="drop_zone_files" class="drop-zone mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect lowwdidth">
+                        Drop files here or click to upload files
+                        <input type="file" id="fileInputFiles" multiple="multiple" hidden onchange="handleFileSelect(event)">
+                    </div>
+                    <div id="drop_zone_folders" class="drop-zone mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect lowwdidth">
+                        Drop folder here or click to upload folder
+                        <input type="file" id="fileInputFolders" webkitdirectory hidden onchange="handleFileSelect(event)">
+                    </div>
+
+                    <div class="progress-container">
+                        <span id="fileProgressLabel" class="progress-label">File Progress: 0%</span>
+                        <div class="progress-bar">
+                            <div id="fileProgressBar" class="progress-bar-fill"></div>
+                        </div>
+
+                        <span id="overallProgressLabel" class="progress-label">Overall Progress: 0%</span>
+                        <div class="progress-bar">
+                            <div id="overallProgressBar" class="progress-bar-fill"></div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label for="checkbox1">Enable Encryption</label>
+                        <input type="checkbox" id="checkbox1" name="checkbox1" onchange="sendCheckboxState(this)">
+                    </div>
+
+                    <div>
+                        <a class="btn btn-success" href="{{url_for('download')}}">Download</a>
+                    </div>
+
+                    <span id="fileName" class="file-name"></span>
+                </div>
+            </main>
+        </div>
+    </div>
+    
+    <script>
+        function sendCheckboxState(checkbox) {
+            // Create a new XMLHttpRequest object
+            var xhr = new XMLHttpRequest();
+            
+            // Prepare the request
+            xhr.open("POST", "/submit_checkbox", true);
+            xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+
+            // Send the checkbox state ('checked' or 'unchecked')
+            state = checkbox.checked ? '1' : '0';
+            xhr.send("checkbox1=" + state);
+        }
+    </script>
+
+        <script>
+            const MAX_CONCURRENT_UPLOADS = 10;
+            let totalFiles = 0;
+            let filesUploaded = 0;
+            let partsUploaded = 0;
+            let totalParts = 0;
+
+            document.getElementById('drop_zone_files').addEventListener('click', function() {
+                document.getElementById('fileInputFiles').click();
+            });
+
+            document.getElementById('drop_zone_folders').addEventListener('click', function() {
+                document.getElementById('fileInputFolders').click();
+            });
+
+            async function handleFileSelect(event) {
+                event.stopPropagation();
+                event.preventDefault();
+
+                let files = event.target.files ? event.target.files : event.dataTransfer.files;
+                let fileArray = Array.from(files).filter(file => !file.webkitRelativePath.includes('/.'));
+
+                // Collect files in subfolder-first order
+                let folderStructure = collectFilesByFolder(fileArray);
+
+                totalFiles = fileArray.length;
+                filesUploaded = 0;
+                partsUploaded = 0;
+                totalParts = 0;
+                updateProgressBar(0, 'overall');
+
+                // Queue to process files in order, ensuring files in subfolders are uploaded first
+                for (let folder of Object.keys(folderStructure)) {
+                    let folderFiles = folderStructure[folder];
+                    for (let i = 0; i < folderFiles.length; i++) {
+                        await uploadFileOrSplit(folderFiles[i]);
+                        filesUploaded++;
+                        updateProgressBar((filesUploaded / totalFiles) * 100, 'overall');
+                    }
+                }
+
+                document.getElementById('fileName').textContent = 'All uploads completed!';
+            }
+
+            // Function to group files by folder paths
+            function collectFilesByFolder(fileArray) {
+                let folderStructure = {};
+
+                fileArray.forEach(file => {
+                    let folderPath = file.webkitRelativePath.substring(0, file.webkitRelativePath.lastIndexOf('/'));
+
+                    if (!folderStructure[folderPath]) {
+                        folderStructure[folderPath] = [];
+                    }
+
+                    folderStructure[folderPath].push(file);
+                });
+
+                return folderStructure;
+            }
+
+            function splitFile(file, chunkSize) {
+                let parts = [];
+                let size = file.size;
+                for (let i = 0; i < size; i += chunkSize) {
+                    let part = file.slice(i, Math.min(size, i + chunkSize));
+                    parts.push(part);
+                }
+                return parts;
+            }
+
+            async function uploadFileOrSplit(file) {
+                let chunkSize;
+
+                if (state === '1') {
+                    chunkSize = 16 * 1024 * 1024; // 16 MB file size limit to account for encryption overhead
+                } 
+                else {
+                    chunkSize = 25 * 1024 * 1024; // 25 MB Discord file size limit
+                }
+
+                let parts = file.size > chunkSize ? splitFile(file, chunkSize) : [file];
+                totalParts = parts.length;
+                sendTotalParts();
+                partsUploaded = 0;
+                updateProgressBar(0, 'file');
+
+                await uploadPartsConcurrently(parts, file.name);
+            }
+
+            function sendTotalParts() {
+            fetch('/upload_parts', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ total_parts: totalParts })
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Success:', data);
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+            });
+        }
+
+            async function uploadPartsConcurrently(parts, originalFileName) {
+                let promises = [];
+                for (let index = 0; index < parts.length; index++) {
+                    promises.push(uploadPart(parts[index], originalFileName, index + 1, parts.length));
+                }
+                await Promise.all(promises);
+            }
+
+            function uploadPart(part, originalFileName, partIndex, totalParts) {
+                return new Promise((resolve, reject) => {
+                    let formData = new FormData();
+                    var fileName = state === '1'
+                        ? `${originalFileName}.encrypted.part${partIndex}`
+                        : `${originalFileName}.part${partIndex}`;
+                    formData.append('file', part, fileName);
+
+                    fetch('/upload', {
+                        method: 'POST',
+                        body: formData,
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        document.getElementById('fileName').textContent = `Uploaded part ${partIndex} of ${totalParts} for ${originalFileName}`;
+                        partsUploaded++;
+                        updateProgressBar((partsUploaded / totalParts) * 100, 'file');
+                        resolve();
+                    })
+                    .catch(error => {
+                        console.error('Error uploading part', partIndex, error);
+                        document.getElementById('fileName').textContent = 'Error uploading part ' + partIndex;
+                        reject(error);
+                    });
+                });
+            }
+
+            function updateProgressBar(percentage, type) {
+                if (type === 'file') {
+                    document.getElementById('fileProgressLabel').textContent = `File Progress: ${Math.round(percentage)}%`;
+                    document.getElementById('fileProgressBar').style.width = `${percentage}%`;
+                } else if (type === 'overall') {
+                    document.getElementById('overallProgressLabel').textContent = `Overall Progress: ${Math.round(percentage)}%`;
+                    document.getElementById('overallProgressBar').style.width = `${percentage}%`;
+                }
+            }
+
+            // Drag and drop support for files
+            document.getElementById('drop_zone_files').addEventListener('dragover', function(event) {
+                event.stopPropagation();
+                event.preventDefault();
+                event.dataTransfer.dropEffect = 'copy';
+            });
+
+            document.getElementById('drop_zone_folders').addEventListener('dragover', function(event) {
+                event.stopPropagation();
+                event.preventDefault();
+                event.dataTransfer.dropEffect = 'copy';
+            });
+
+            document.getElementById('drop_zone_files').addEventListener('drop', handleFileSelect);
+            document.getElementById('drop_zone_folders').addEventListener('drop', handleFileSelect);
+        </script>
+
+    </body>
+</html>

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Register Page</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+</head>
+<body bgcolor="lightblue">
+
+<form id="registerForm" action="/form_register" method="post">
+  <h2>Username:</h2>
+  <input type="text" id="username" name='username' required><br>
+  <h2>Password:</h2>
+  <input type="password" id="password" name='password' required><br><br>
+  <input type="submit" value="Register">
+</form>
+
+<h1>{{info}}</h1>
+<p>Already have an account? <a href="/">Login here</a></p>
+
+<script>
+  document.getElementById('registerForm').addEventListener('submit', function(e) {
+    e.preventDefault();  // Prevent the form from submitting normally
+
+    // Encrypt the username and password using SHA-256
+    var usernameField = document.getElementById('username');
+    var passwordField = document.getElementById('password');
+    var encryptedUsername = CryptoJS.SHA256(usernameField.value).toString();
+    var encryptedPassword = CryptoJS.SHA256(passwordField.value).toString();
+
+    // Set the encrypted values back to the input fields
+    usernameField.value = encryptedUsername;
+    passwordField.value = encryptedPassword;
+
+    // Now submit the form
+    this.submit();
+  });
+</script>
+
+</body>
+</html>
