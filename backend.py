@@ -107,6 +107,7 @@ def search_csv_file(search_text, exclude_keywords):
         found = False
         # Iterate through each row in the CSV file
         for line_number, row in enumerate(reader, start=1): 
+            # Extract the first 3 columns: message_id, timestamp, user id, content
             message_id = row[0]
             timestamp = datetime.fromisoformat(row[1])
             user_id = row[2]
@@ -214,6 +215,7 @@ def download():
     path = str(uploads[session["users"]["hashed_name"]]["download_file_path"])
     filename = path.replace(f"{str(session['users']['hashed_name'])}_", "")
     filename = os.path.basename(filename)
+    print (path)
     print(os.path.getsize(path)/1000000)
     @after_this_request
     def remove_file(response):
@@ -237,6 +239,7 @@ def download():
 def stitch_files(directory, *,output_file : str, base_filename : str):
     hashed_name = str(session['users']['hashed_name'])
     
+    # Ensure the directory ends with a slash
     if not directory.endswith(os.path.sep):
         directory += os.path.sep
 
@@ -247,9 +250,10 @@ def stitch_files(directory, *,output_file : str, base_filename : str):
         if filename.startswith(base_filename) and filename != output_file:
             parts.append(filename)
 
+    # Sort the parts by their part number
     parts.sort(key=lambda x: int(x.split('part')[-1]))
 
-    with open(directory + f"{hashed_name}_" + output_file, 'wb') as output:
+    with open(directory + output_file, 'wb') as output:
         # Iterate over each part and append contents to output file
         for part in parts:
             with open(directory + part, 'rb') as f:
@@ -276,7 +280,7 @@ def stitch_files(directory, *,output_file : str, base_filename : str):
         except Exception as e:
             print(f"Error deleting {file_path}: {e}")
 
-    filepath = directory + f"{hashed_name}_" + output_file
+    filepath = directory + output_file
     print(f"Stitched {len(parts)} parts into {output_file}")
     if os.path.exists(filepath):
         global uploads
@@ -386,7 +390,7 @@ def load_users_from_csv(filepath):
                     username, password, channel_id = row[0], row[1], row[2]
                     users_file[username] = {
                         "password": password,
-                        "login_channel_id": channel_id
+                        "login_channel_id": channel_id  # Store channel_id under each username
                     }
     return users_file
 
@@ -512,6 +516,7 @@ async def compare_and_update(file):
             channel = client.get_channel(session["users"].get("CHANNEL_ID"))
             cleaned_filename = '.'.join(file.filename.split('.')[:-1])
             cleaned_filename = cleaned_filename.replace(f"{hashed_name}_", "")
+            print(cleaned_filename)
             if cleaned_filename != uploads[session["users"]["hashed_name"]]["cleaned_filename_copy"]:
                 await channel.send(cleaned_filename)
             uploads[session["users"]["hashed_name"]]["cleaned_filename_copy"] = cleaned_filename
@@ -596,6 +601,7 @@ async def send_file_to_discord(file):
                 raise
     uploads[session["users"].get("hashed_name")]["upload_queue"] -= 1
     # Once all files are uploaded, send a final message
+    #if session["users"]["upload_queue"] == 0:
     if uploads[session["users"].get("hashed_name")]["upload_queue"] == 0:
         hashed_name = str(session['users']['hashed_name'])
         files_to_delete = glob.glob(os.path.join(upload_folder, f"{hashed_name}_*part*"))
