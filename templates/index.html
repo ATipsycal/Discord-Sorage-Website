@@ -149,16 +149,23 @@
             });
         </script>
         <div class = "section1">
-        <form action="/search" method="POST">
+        <form action="/search" method="POST" class="search-form">
             <input type="text" name="query" placeholder="Search..." value="{{ query }}" required>
             <button type="submit">Search</button>
+            <button type="button" onclick="clearSearch()">Clear</button>
+            <button type="button" onclick="showAllFiles()">Show All Files</button>
         </form>
+        <p id="selectedFilesCount">Selected files: 0</p>
     
         {% if results %}
             <h2>Results for "{{ query }}"</h2>
+            <input type="checkbox" id="selectAll" onclick="toggleSelectAll()"> Select All
             <ul>
                 {% for result in results %}
-                    <li><a href="#" onclick="storeClickedMessage('{{ result }}')">{{ result }}</a></li>
+                    <li>
+                        <input type="checkbox" class="file-checkbox" value="{{ result }}" onchange="toggleDownloadButton()">
+                        <span>{{ result }}</span>
+                    </li>
                 {% endfor %}
             </ul>
         {% elif query %}
@@ -182,6 +189,30 @@
                 .catch((error) => {
                     console.error('Error:', error);
                 });
+            }
+
+            function clearSearch() {
+                document.querySelector('input[name="query"]').value = '';
+                document.querySelector('form').submit();
+            }
+
+            function showAllFiles() {
+                window.location.href = '/show_all_files';
+            }
+
+            function toggleSelectAll() {
+                const selectAllCheckbox = document.getElementById('selectAll');
+                const checkboxes = document.querySelectorAll('.file-checkbox');
+                checkboxes.forEach(checkbox => {
+                    checkbox.checked = selectAllCheckbox.checked;
+                });
+                toggleDownloadButton();
+                updateSelectedFilesCount();
+            }
+
+            function updateSelectedFilesCount() {
+                const selectedFilesCount = document.querySelectorAll('.file-checkbox:checked').length;
+                document.getElementById('selectedFilesCount').textContent = `Selected files: ${selectedFilesCount}`;
             }
         </script>
         <div class = "section2">
@@ -207,6 +238,11 @@
                         <div class="progress-bar">
                             <div id="overallProgressBar" class="progress-bar-fill"></div>
                         </div>
+
+                        <span id="downloadProgressLabel" class="progress-label">Download Progress: 0%</span>
+                        <div class="progress-bar">
+                            <div id="downloadProgressBar" class="progress-bar-fill"></div>
+                        </div>
                     </div>
 
                     <div>
@@ -215,7 +251,7 @@
                     </div>
 
                     <div>
-                        <a class="btn btn-success" href="{{url_for('download')}}">Download</a>
+                        <button id="downloadButton" class="btn btn-success" onclick="downloadSelectedFiles()" disabled>Download</button>
                     </div>
 
                     <span id="fileName" class="file-name"></span>
@@ -259,7 +295,14 @@
                 event.preventDefault();
 
                 let files = event.target.files ? event.target.files : event.dataTransfer.files;
-                let fileArray = Array.from(files).filter(file => !file.webkitRelativePath.includes('/.'));
+                let fileArray = Array.from(files);
+
+                // Filter out hidden files and directories
+                fileArray = fileArray.filter(file => {
+                    // Skip files that start with . or are in hidden directories
+                    const pathParts = file.webkitRelativePath.split('/');
+                    return !pathParts.some(part => part.startsWith('.'));
+                });
 
                 // Collect files in subfolder-first order
                 let folderStructure = collectFilesByFolder(fileArray);
@@ -281,6 +324,7 @@
                 }
 
                 document.getElementById('fileName').textContent = 'All uploads completed!';
+                document.getElementById('downloadButton').disabled = false;
             }
 
             // Function to group files by folder paths
@@ -288,7 +332,10 @@
                 let folderStructure = {};
 
                 fileArray.forEach(file => {
-                    let folderPath = file.webkitRelativePath.substring(0, file.webkitRelativePath.lastIndexOf('/'));
+                    // Get the folder path, defaulting to root if no path
+                    let folderPath = file.webkitRelativePath ? 
+                        file.webkitRelativePath.substring(0, file.webkitRelativePath.lastIndexOf('/')) : 
+                        'root';
 
                     if (!folderStructure[folderPath]) {
                         folderStructure[folderPath] = [];
@@ -297,7 +344,13 @@
                     folderStructure[folderPath].push(file);
                 });
 
-                return folderStructure;
+                // Sort folders to ensure subfolders are processed first
+                return Object.keys(folderStructure)
+                    .sort((a, b) => a.split('/').length - b.split('/').length)
+                    .reduce((obj, key) => {
+                        obj[key] = folderStructure[key];
+                        return obj;
+                    }, {});
             }
 
             function splitFile(file, chunkSize) {
@@ -314,10 +367,10 @@
                 let chunkSize;
 
                 if (state === '1') {
-                    chunkSize = 16 * 1024 * 1024; // 16 MB file size limit to account for encryption overhead
+                    chunkSize = 3 * 1024 * 1024; // 3 MB file size limit to account for encryption overhead
                 } 
                 else {
-                    chunkSize = 25 * 1024 * 1024; // 25 MB Discord file size limit
+                    chunkSize = 4 * 1024 * 1024; // 4 MB Discord file size limit
                 }
 
                 let parts = file.size > chunkSize ? splitFile(file, chunkSize) : [file];
@@ -388,6 +441,9 @@
                 } else if (type === 'overall') {
                     document.getElementById('overallProgressLabel').textContent = `Overall Progress: ${Math.round(percentage)}%`;
                     document.getElementById('overallProgressBar').style.width = `${percentage}%`;
+                } else if (type === 'download') {
+                    document.getElementById('downloadProgressLabel').textContent = `Download Progress: ${Math.round(percentage)}%`;
+                    document.getElementById('downloadProgressBar').style.width = `${percentage}%`;
                 }
             }
 
@@ -406,6 +462,62 @@
 
             document.getElementById('drop_zone_files').addEventListener('drop', handleFileSelect);
             document.getElementById('drop_zone_folders').addEventListener('drop', handleFileSelect);
+
+            function downloadSelectedFiles() {
+                let selectedFiles = Array.from(document.querySelectorAll('.file-checkbox:checked')).map(cb => cb.value);
+                console.log("Selected files:", selectedFiles); // Debugging line
+                fetch('/download_selected_files', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ files: selectedFiles })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        let totalFiles = data.files.length;
+                        let filesDownloaded = 0;
+                        data.files.forEach(file => {
+                            fetch(file.url)
+                                .then(response => response.blob())
+                                .then(blob => {
+                                    let url = window.URL.createObjectURL(blob);
+                                    let a = document.createElement('a');
+                                    a.style.display = 'none';
+                                    a.href = url;
+                                    a.download = file.name;
+                                    document.body.appendChild(a);
+                                    a.click();
+                                    window.URL.revokeObjectURL(url);
+                                    filesDownloaded++;
+                                    updateProgressBar((filesDownloaded / totalFiles) * 100, 'download');
+                                })
+                                .catch(error => console.error('Error downloading file:', error));
+                        });
+                    } else {
+                        console.error('Error:', data.error);
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+            }
+
+            function toggleDownloadButton() {
+                const checkboxes = document.querySelectorAll('.file-checkbox:checked');
+                document.getElementById('downloadButton').disabled = checkboxes.length === 0;
+                updateSelectedFilesCount();
+            }
+
+            window.addEventListener('beforeunload', function() {
+                localStorage.setItem('scrollPosition', window.scrollY);
+            });
+
+            window.addEventListener('load', function() {
+                if (localStorage.getItem('scrollPosition') !== null) {
+                    window.scrollTo(0, localStorage.getItem('scrollPosition'));
+                    localStorage.removeItem('scrollPosition');
+                }
+            });
         </script>
 
     </body>
